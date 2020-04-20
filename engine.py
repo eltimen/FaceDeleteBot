@@ -1,6 +1,7 @@
 import sys
 import cv2
 import dlib
+import numpy as np
 from imutils import face_utils
    
 def detect_faces(image):
@@ -15,6 +16,18 @@ def detect_faces(image):
         hull = cv2.convexHull(shape)
         face_hulls.append(hull)
     return face_hulls; 
+    
+def blur_convex_hulls(image, hulls):
+    blurred_image = cv2.GaussianBlur(image,(93, 93), 20)
+   
+    mask = np.zeros(image.shape, np.uint8) 
+    for hull in hulls:
+        roi_corners = np.reshape(np.array(hull,dtype = np.int32), (1, 1, -1, 2))
+        cv2.fillPoly(mask, roi_corners, (255,)*image.shape[2])
+    mask_inverse = np.ones(mask.shape).astype(np.uint8)*255 - mask
+    
+    return cv2.bitwise_and(blurred_image, mask) + cv2.bitwise_and(image, mask_inverse)
+    
 
 def process_image(path):
     image = cv2.imread(path) 
@@ -23,8 +36,7 @@ def process_image(path):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     faces = detect_faces(gray)
     
-    for face in faces:
-        cv2.drawContours(image, [face], -1, (0, 0, 0), cv2.FILLED)
+    image = blur_convex_hulls(image, faces)
     
     #save_path = path[:path.rindex('.')] + '_out' + path[path.rindex('.'):]
     save_path = path + '_out.jpg'
