@@ -36,13 +36,15 @@ def handle(msg):
     print(msg)
     content_type, chat_type, chat_id = telepot.glance(msg)
 
-    if content_type == 'photo':
+    if content_type == 'text' and msg['text'] == '/start':
+        bot.sendMessage(chat_id, "Hello! I'm @FaceDeleteBot. \n Send me photo and I detect and blur all faces on it.")
+    elif content_type == 'photo':
         path = download_image(msg)
         modified_path = engine.process_image(path)
         with open(modified_path, 'rb') as modified_photo:
             bot.sendPhoto(chat_id, modified_photo, reply_to_message_id=msg['message_id'])
     else:
-        bot.sendMessage(chat_id, "Don't understand! Just send me photo and get result :)")
+        bot.sendMessage(chat_id, "Don't understand! Just send me photo and get result :)", reply_to_message_id=msg['message_id'])
 
 bot.message_loop(handle)
 
