@@ -3,3 +3,6 @@ token.txt
 __pycache__/
 *.dat
 *.xml
+
+*_out.jpg
+*_out.png
