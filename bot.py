@@ -1,11 +1,9 @@
 #!/usr/bin/python3.7
-import telepot
-import time
-import urllib3
-import urllib3.request
-import tempfile
 import logging
+import os
 import sys
+import tempfile
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 import engine
 
@@ -15,53 +13,58 @@ def get_telegram_token():
         return f.readline().strip()
 
 
-def download_image(msg):
-    if len(msg['photo']) == 0:
-        return ''
-
-    file_name = msg['photo'][-1]['file_id']
-    path = tempfile.gettempdir() + '/' + file_name
-    bot.download_file(file_name, path)
-    return path
+def on_start(update, context):
+    logging.info('Start: ' + str(update))
+    msg = "Hello! I'm @FaceDeleteBot. \n Send me photo and I detect and blur all faces on it."
+    context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
 
 
-def handle(msg):
-    logging.info(msg)
-    content_type, chat_type, chat_id = telepot.glance(msg)
+def on_photo(update, context):
+    logging.info('Photo: ' + str(update))
+    message = update.effective_message
+    photos = list(message.photo)
+    if message.document:
+        photos.append(message.document)
 
-    if content_type == 'text' and msg['text'] == '/start':
-        bot.sendMessage(chat_id, "Hello! I'm @FaceDeleteBot. \n Send me photo and I detect and blur all faces on it.")
-    elif content_type == 'photo':
-        path = download_image(msg)
-        output_path = engine.process_image(path)
+    for p in photos:
+        file = context.bot.getFile(p.file_id)
+        path = tempfile.gettempdir() + '/' + p.file_id
         logging.info('Input image: ' + path)
+        file.download(path)
+
+        output_path = engine.process_image(path)
         logging.info('Output image: ' + output_path)
+
         with open(output_path, 'rb') as output_photo:
-            bot.sendPhoto(chat_id, output_photo, reply_to_message_id=msg['message_id'])
-    else:
-        bot.sendMessage(chat_id, "Don't understand! Just send me photo and get result :)",
-                        reply_to_message_id=msg['message_id'])
+            context.bot.sendPhoto(chat_id=update.effective_chat.id, photo=output_photo,
+                                  reply_to_message_id=message.message_id)
 
 
-def setup_pyanywhere_free_proxy():
+def on_unknown(update, context):
+    logging.info('Unknown: ' + str(update))
+    msg = "Don't understand! Just send me photo and get result :)"
+    context.bot.send_message(chat_id=update.effective_chat.id, text=msg,
+                             reply_to_message_id=update.effective_message.message_id)
+
+
+def get_proxy():
     """
-    Setup proxy for free PythonAnywhere account
+    Get proxy config for current deploy
     """
-    proxy_url = "http://proxy.server:3128"
-    telepot.api._pools = {
-        'default': urllib3.ProxyManager(proxy_url=proxy_url, num_pools=3, maxsize=10, retries=False, timeout=30),
-    }
-    telepot.api._onetime_pool_spec = (
-        urllib3.ProxyManager, dict(proxy_url=proxy_url, num_pools=1, maxsize=1, retries=False, timeout=30)
-    )
+    # for free PythonAnywhere account
+    if os.getenv('PYTHONANYWHERE_DOMAIN'):
+        return {'proxy_url': 'http://proxy.server:3128'}
+
+    return {}
 
 
-setup_pyanywhere_free_proxy()
 logging.basicConfig(filename='facedeletebot.log', level=logging.INFO)
 logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-bot = telepot.Bot(get_telegram_token())
-bot.message_loop(handle)
-print('Listening ...')
 
-while 1:
-    time.sleep(10)
+updater = Updater(get_telegram_token(), request_kwargs=get_proxy())
+updater.dispatcher.add_handler(CommandHandler('start', on_start))
+updater.dispatcher.add_handler(MessageHandler((Filters.photo | Filters.document) & (~Filters.command), on_photo))
+updater.dispatcher.add_handler(MessageHandler(Filters.all, on_unknown))
+
+updater.start_polling()
+updater.idle()

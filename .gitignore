@@ -1,10 +1,10 @@
+__pycache__/
+.idea/
 token.txt
 *.bak
-__pycache__/
 *.dat
 *.xml
-
 *_out.jpg
 *_out.png
-
 *driver.exe
+facedeletebot.log
