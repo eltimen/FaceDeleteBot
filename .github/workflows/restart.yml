@@ -1,0 +1,38 @@
+name: Restart
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    - cron: '30 1 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+
+      - name: Install Firefox
+        run: |
+          sudo apt update
+          sudo apt install firefox
+          wget https://github.com/mozilla/geckodriver/releases/download/v0.29.0/geckodriver-v0.29.0-linux64.tar.gz
+          tar -xvzf geckodriver*
+          chmod +x geckodriver
+          sudo mv geckodriver /usr/local/bin/
+        
+      - name: Install Selenium
+        run: pip install selenium
+
+      - name: Start bot
+        env:
+          LOGIN: ${{ secrets.LOGIN }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+        run: |
+          export MOZ_HEADLESS=1
+          python3 ci/pyanywhere_restart.py
+            
