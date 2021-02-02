@@ -22,7 +22,9 @@ def on_start(update, context):
 def on_photo(update, context):
     logging.info('Photo: ' + str(update))
     message = update.effective_message
-    photos = list(message.photo)
+    photos = []
+    if message.photo:
+        photos.append(message.photo[-1])
     if message.document:
         photos.append(message.document)
 
