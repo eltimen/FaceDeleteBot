@@ -1,25 +1,33 @@
 import sys
 import cv2
-import dlib
 import numpy as np
-from imutils import face_utils
 
-detect = dlib.get_frontal_face_detector()
-predict = dlib.shape_predictor("models/shape_predictor_68_face_landmarks.dat")
+model_path = "models/opencv_face_detector.caffemodel"
+config_path = "models/deploy.prototxt"
+net = cv2.dnn.readNetFromCaffe(config_path, model_path)
+net_input_shape = 300, 300
 
 
-def detect_faces(image):
-    face_hulls = []
-    subjects = detect(image, 0)
-    for subject in subjects:
-        shape = predict(image, subject)
-        shape = face_utils.shape_to_np(shape)
-        hull = cv2.convexHull(shape)
-        face_hulls.append(hull)
-    return face_hulls
+def detect_faces(img):
+    """Detect faces on the image and return bounding rectangles"""
+    height, width = img.shape[:2]
+    blob = cv2.dnn.blobFromImage(cv2.resize(img, net_input_shape), 1.0, net_input_shape, (104.0, 117.0, 123.0))
+
+    net.setInput(blob)
+    output = net.forward()
+    face_rectangles = []
+    for i in range(output.shape[2]):
+        confidence = output[0, 0, i, 2]
+        if confidence > 0.45:
+            box = output[0, 0, i, 3:7] * np.array([width, height, width, height])
+            (x, y, x1, y1) = box.astype('int')
+            face_rectangles.append(((x, y), (x1, y1)))
+
+    return face_rectangles
 
 
 def blur_convex_hulls(image, hulls):
+    """Blur the specified convex hulls in the image"""
     blurred_image = cv2.GaussianBlur(image, (93, 93), 20)
     mask = np.zeros(image.shape, np.uint8)
 
@@ -30,18 +38,30 @@ def blur_convex_hulls(image, hulls):
     return cv2.bitwise_and(blurred_image, mask) + cv2.bitwise_and(image, mask_inverse)
 
 
+def blur_rects(image, rects):
+    """Blur the specified rectangles in the image"""
+    output_image = image.copy()
+    for rect in rects:
+        x, y = rect[0]
+        x1, y1 = rect[1]
+        output_image[y:y1, x:x1] = cv2.GaussianBlur(image[y:y1, x:x1], (93, 93), 20)
+    return output_image
+
+
 def process_image(path):
     image = cv2.imread(path)
+    if image is None:
+        return None
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = detect_faces(gray)
-    image = blur_convex_hulls(image, faces)
+    face_rectangles = detect_faces(image)
+    out_image = blur_rects(image, face_rectangles)
 
     try:
         out_image_path = path[:path.rindex('.')] + '_out' + path[path.rindex('.'):]
     except ValueError:
-        out_image_path = path + '.png'
-    cv2.imwrite(out_image_path, image)
+        # if no extension in filename
+        out_image_path = path + '_out.png'
+    cv2.imwrite(out_image_path, out_image)
     return out_image_path
 
 

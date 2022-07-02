@@ -95,8 +95,11 @@ def on_photo(update, context):
         file.download(path)
 
         output_path = engine.process_image(path)
-        logger_messages.info('Output image: ' + output_path)
+        if output_path is None:
+            context.bot.send_message(chat_id=update.effective_chat.id, text='Unsupported image format',
+                                     reply_to_message_id=update.effective_message.message_id)
 
+        logger_messages.info('Output image: ' + output_path)
         with open(output_path, 'rb') as output_photo:
             context.bot.sendPhoto(chat_id=update.effective_chat.id, photo=output_photo,
                                   reply_to_message_id=message.message_id)
